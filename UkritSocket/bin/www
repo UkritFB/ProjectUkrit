@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+/**
+ * Module dependencies.
+ */
+console.log("www");
+
+var app       = require('../app');
+var debug     = require('debug')('ukritsocket:server');
+var http      = require('http');
+var MongoClient = require('mongodb').MongoClient;
+// Connection URL
+var url = 'mongodb://localhost:27017/tempcontrol_db';
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port      = normalizePort(process.env.PORT || '80');
+app.set('port', port);
+/**
+ * Create HTTP server.
+ */
+var server     = http.createServer(app);
+/*
+ Create socket.io
+*/
+var io         = require('socket.io')(server);
+/*
+ Create socket.io
+*/
+var serialPort = require("serialport"); //for nodejs v4
+var sPort      = null;
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+system();
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+///////////////////////////////////////////////////////////////////////////////////
+io.on('connection', function (socket,callback) {
+
+        MongoClient.connect(url, function(err, db) {
+            if (err) throw err;
+            var query = {};
+            var sort = { _id: -1 }
+            db.collection("temp_collection").find(query).sort(sort).toArray(function(err, result) {
+                if (err) throw err;
+                socket.emit('get_setting',{user_temp:result[0].user_temp,user_hum:result[0].user_hum,time:result[0].time});
+                // console.log(result[0]);
+                console.log(result[0].time+result[0].user_temp+result[0].user_hum);
+                // socket.emit('Send-data-web', {data:result[0].time});
+                db.close();
+            });
+        }); 
+    
+        // socket.emit('Send-data-web', {data:da});
+        socket.on('Recive-data-web', function (data) {
+            console.log(data);
+            var user_temp = data.user_temp;
+            var user_hum = data.user_hum;
+            var temp3 = 25;
+            var hum1  = 25;
+            var myDate = new Date();
+            var datetime = myDate.setHours(myDate.getHours() + 7);
+        
+             MongoClient.connect(url, function(err, db) {
+                if (err) throw err;
+                var myobj = [
+                    { time:myDate,user_temp:user_temp,user_hum:user_hum,temp3:temp3,hum1:hum1}
+                ];
+                db.collection("temp_collection").insertMany(myobj, function(err, res) {
+                    if (err) throw err;
+                    console.log("Number of documents inserted: " + res.insertedCount);
+                    db.close();
+                });
+
+                var query = {};
+                var sort = { _id: -1 }
+                db.collection("temp_collection").find(query).sort(sort).toArray(function(err, result) {
+                    if (err) throw err;
+                    socket.emit('recive_timeupdate',{time:result[0].time});
+                    db.close();
+                });
+            });
+        });
+});
+
+
+// Create Collection //////////////////////////////////////////////////////////////
+MongoClient.connect(url, function(err, db) {
+  if (err) throw err;
+  db.createCollection("temp_collection", function(err, res) {
+    if (err) throw err;
+    console.log("Collection created!");
+    db.close();
+  });
+}); 
+///////////////////////////////////////////////////////////////////////////////////
+// ///insert data /////////////
+// var temp1 = user_temp;
+// var temp2 = 25;
+// var temp3 = 25;
+// var hum1  = 25;
+// var myDate = new Date();
+// var datetime = myDate.setHours(myDate.getHours() + 7);
+// MongoClient.connect(url, function(err, db) {
+//   if (err) throw err;
+//   var myobj = [
+//     { time:myDate,temp1:temp1,temp2:temp2,temp3:temp3,hum1:hum1}
+//   ];
+//   db.collection("temp_collection").insertMany(myobj, function(err, res) {
+//     if (err) throw err;
+//     console.log("Number of documents inserted: " + res.insertedCount);
+//     db.close();
+//   });
+// });
+///////////////////////////////////////////////////////////
+//////////////////////////////////// information Server //////////////////
+function system(callback)
+{
+  console.log("System");
+  var os = require('os');
+  var hostIP = '';
+  var macAddr = '';
+  var netMask = '';
+  var cpu = os.cpus();
+  console.log('');
+  console.log('###################################');
+  console.log('#   Server Temp Control By Ukrit  #');
+  console.log('###################################');
+  console.log(cpu.length+'-Core', os.cpus()[0].model);
+  console.log('Total mem', os.totalmem());
+  console.log('Free mem', os.freemem());
+  console.log('Found', os.platform(), os.release());
+  console.log('###################################');
+  console.log('');
+  console.log('');
+}
+///////////////////////////////////////////////////////////////////////////////////
+/**
+ * Normalize a port into a number, string, or false.
+ */
+function normalizePort(val) {
+    console.log("normalizePort");
+    var port = parseInt(val, 10);
+    if (isNaN(port)) {
+        // named pipe
+        return val;
+    }
+    if (port >= 0) {
+        // port number
+        return port;
+    }
+    return false;
+}
+///////////////////////////////////////////////////////////////////////////////////
+/**
+ * Event listener for HTTP server "error" event.
+ */
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+///////////////////////////////////////////////////////////////////////////////////
+var Gpio = require('onoff').Gpio; //include onoff to interact with the GPIO
+var LED = new Gpio(4, 'out'); //use GPIO pin 4, and specify that it is output
+var blinkInterval = setInterval(blinkLED, 250); //run the blinkLED function every 250ms
+
+function blinkLED() { //function to start blinking
+  if (LED.readSync() === 0) { //check the pin state, if the state is 0 (or off)
+    LED.writeSync(1); //set pin state to 1 (turn LED on)
+  } else {
+    LED.writeSync(0); //set pin state to 0 (turn LED off)
+  }
+}
+
+function endBlink() { //function to stop blinking
+  clearInterval(blinkInterval); // Stop blink intervals
+  LED.writeSync(0); // Turn LED off
+  LED.unexport(); // Unexport GPIO to free resources
+}
+
+//setTimeout(endBlink, 5000); //stop blinking after 5 seconds 
